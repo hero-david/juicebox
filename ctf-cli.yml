@@ -1,0 +1,11 @@
+# Config for juice-shop-ctf-cli, consumed by the `ctf-cli` compose service to
+# generate the CTFd challenge import zip.
+#
+# NOTE: ctfKey must match CTF_KEY in .env. For a real event keep it secret;
+# for this throwaway demo it is committed as-is for convenience.
+ctfFramework: CTFd
+juiceShopUrl: http://localhost:3001
+ctfKey: "151764d0d9c519fb53f1c8be1e18caecb4ecdc40e67cd63534858dc1e84daa29"
+insertHints: free
+#insertHintUrls: free
+insertHintSnippets: free

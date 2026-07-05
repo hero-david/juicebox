@@ -1,6 +1,5 @@
-# Secrets (ctf-cli.yml holds the CTF_KEY)
+# Secrets
 .env
-ctf-cli.yml
 .idea
 
 # Generated CTFd import artifacts
