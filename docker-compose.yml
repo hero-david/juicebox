@@ -8,8 +8,7 @@ x-juice-shop: &juice-shop
   environment:
     NODE_ENV: ctf
     # Secret used to derive the per-challenge flag codes.
-    # Must match the CTF_KEY you feed to juice-shop-ctf-cli.
-    CTF_KEY: ${CTF_KEY:?set CTF_KEY in a .env file or your shell}
+    CTF_KEY: "151764d0d9c519fb53f1c8be1e18caecb4ecdc40e67cd63534858dc1e84daa29"
   volumes:
     # Override the stock CTF config to re-enable the Hacking Instructor.
     - ./juice-shop.ctf.yml:/juice-shop/config/ctf.yml:ro
