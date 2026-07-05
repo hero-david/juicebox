@@ -1,0 +1,10 @@
+# Secrets (ctf-cli.yml holds the CTF_KEY)
+.env
+ctf-cli.yml
+.idea
+
+# Generated CTFd import artifacts
+/ctf/
+OWASP_Juice_Shop.*.CTFd.zip
+OWASP_Juice_Shop.*.CTFd.csv
+juice-shop.CTFd.zip

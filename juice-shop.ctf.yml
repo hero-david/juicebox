@@ -1,0 +1,33 @@
+# Custom Juice Shop app config for this stack.
+#
+# This is mounted over the image's built-in /juice-shop/config/ctf.yml, so
+# NODE_ENV=ctf still selects it. It mirrors the stock CTF config (node-config
+# merges it on top of default.yml) but re-enables the Hacking Instructor, which
+# the stock ctf.yml disables.
+#
+# Source of the stock values:
+#   https://github.com/juice-shop/juice-shop/blob/master/config/ctf.yml
+# https://pwning.owasp-juice.shop/companion-guide/latest/part4/customization.html#_application_section
+application:
+  name: Hero Juice Shop
+  # Hero brand assets. Mounted from ./brand into the image's asset folders by
+  # docker-compose (URL download fails behind the corporate TLS proxy), so
+  # these are plain filenames, not URLs.
+  logo: hero-logo.png
+  favicon: hero-favicon.ico
+  theme: blue-lightblue
+  altcoinName: Hero Token
+  showVersionNumber: false
+  showGitHubLinks: false
+  localBackupEnabled: false
+  welcomeBanner:
+    showOnFirstStart: true
+    title: 'Welcome to the Hero Security CTF'
+    message: 'Sharpen your security skills on a safe target. Hunt down the flags in your own Hero Shop and submit them to the leaderboard. Happy hacking!'
+challenges:
+  showHints: true
+  safetyMode: disabled
+hackingInstructor:
+  isEnabled: true
+ctf:
+  showFlagsInNotifications: true

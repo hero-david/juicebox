@@ -1,0 +1,181 @@
+# Local OWASP Juice Shop + CTFd stack
+#
+# Services:
+#   traefik      reverse proxy, routes by hostname        (http://traefik.ctf.hero)
+#   juice-david  David's private Juice Shop instance       (http://david.ctf.hero)
+#   juice-kees   Kees's private Juice Shop instance        (http://kees.ctf.hero)
+#   shake-logger keystroke-shake logger                    (http://shake.ctf.hero)
+#   ctfd         shared CTF scoreboard/platform            (http://ctf.hero)
+#   db           MariaDB backing store for CTFd
+#   cache        Redis cache/session store for CTFd
+#
+# Routing:
+#   Cloudflare mesh nodes resolve *.ctf.hero to this box and forward :80 to
+#   Traefik, which routes to each container by Host header (see labels below).
+#   The base domain is ${CTF_DOMAIN} (default ctf.hero) so it can be changed
+#   in one place. Only Traefik publishes ports on the host; every other
+#   service is reachable only through it.
+#
+# How the pieces connect:
+#   Every Juice Shop instance shares the same CTF_KEY, so a given challenge
+#   yields the IDENTICAL flag code on every instance. Each competitor solves
+#   challenges on THEIR OWN instance (isolated server-side progress) and submits
+#   the flag to the single shared CTFd, which is the leaderboard. Juice Shop does
+#   not push to CTFd; the matching flags are what tie everything together.
+#
+# Quick start:
+#   1. Set a CTF_KEY (any long random string). Keep it secret and stable.
+#   2. docker compose up -d
+#   3. CTFd admin:  http://localhost:8000  (complete first-run setup)
+#   4. Generate the CTFd challenge import file from your CTF_KEY:
+#         npx juice-shop-ctf-cli
+#      (CTF framework = CTFd, reuse the same CTF_KEY), then upload it under
+#      CTFd > Admin > Config > Backup > Import.
+#
+# Adding another competitor: copy a juice-<name> block, give it a unique
+# container_name and a free host port (3003, 3004, ...). The shared CTF_KEY
+# means no CTFd re-import is needed.
+
+# Shared config for every Juice Shop instance. Anchored so each competitor's
+# service stays a one-liner and the CTF_KEY can never drift between instances.
+x-juice-shop: &juice-shop
+  image: bkimminich/juice-shop:latest
+  restart: unless-stopped
+  environment:
+    NODE_ENV: ctf
+    # Secret used to derive the per-challenge flag codes.
+    # Must match the CTF_KEY you feed to juice-shop-ctf-cli.
+    CTF_KEY: ${CTF_KEY:?set CTF_KEY in a .env file or your shell}
+  volumes:
+    # Override the stock CTF config to re-enable the Hacking Instructor.
+    - ./juice-shop.ctf.yml:/juice-shop/config/ctf.yml:ro
+    # Hero brand assets, mounted directly (the corporate TLS proxy blocks the
+    # container from downloading them by URL). Referenced by filename in config.
+    - ./brand/hero-logo.png:/juice-shop/frontend/dist/frontend/assets/public/images/hero-logo.png:ro
+    - ./brand/hero-favicon.ico:/juice-shop/frontend/dist/frontend/assets/public/hero-favicon.ico:ro
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/rest/admin/application-version"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
+    start_period: 40s
+
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      # Discover containers via their Traefik labels; opt-in only.
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      # Single HTTP entrypoint; Cloudflare terminates TLS upstream.
+      - --entrypoints.web.address=:80
+      # Dashboard, served (insecurely) on :8080 and via traefik.${CTF_DOMAIN}.
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --log.level=INFO
+      - --accesslog=true
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      # Read-only socket so Traefik can watch container events.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.dashboard.entrypoints=web"
+      - "traefik.http.routers.dashboard.service=api@internal"
+
+  juice-david:
+    <<: *juice-shop
+    container_name: juice-david
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.juice-david.rule=Host(`david.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-david.entrypoints=web"
+      - "traefik.http.services.juice-david.loadbalancer.server.port=3000"
+
+  juice-kees:
+    <<: *juice-shop
+    container_name: juice-kees
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.juice-kees.rule=Host(`kees.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-kees.entrypoints=web"
+      - "traefik.http.services.juice-kees.loadbalancer.server.port=3000"
+
+  shake-logger:
+    build: shake-logger/
+    restart: unless-stopped
+    environment:
+     - TARGET_SOCKET=localhost:8080
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.shake-logger.rule=Host(`shake.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.shake-logger.entrypoints=web"
+      - "traefik.http.services.shake-logger.loadbalancer.server.port=80"
+
+  ctfd:
+    image: ctfd/ctfd:latest
+    container_name: ctfd
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ctfd.rule=Host(`${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.ctfd.entrypoints=web"
+      - "traefik.http.services.ctfd.loadbalancer.server.port=8000"
+    environment:
+      UPLOAD_FOLDER: /var/uploads
+      DATABASE_URL: mysql+pymysql://ctfd:ctfd@db/ctfd
+      REDIS_URL: redis://cache:6379
+      WORKERS: "1"
+      LOG_FOLDER: /var/log/CTFd
+      ACCESS_LOG: "-"
+      ERROR_LOG: "-"
+      REVERSE_PROXY: "true"
+    volumes:
+      - ctfd-uploads:/var/uploads
+      - ctfd-logs:/var/log/CTFd
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+
+  db:
+    image: mariadb:10.11
+    container_name: ctfd-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ctfd
+      MARIADB_USER: ctfd
+      MARIADB_PASSWORD: ctfd
+      MARIADB_DATABASE: ctfd
+    volumes:
+      - ctfd-db:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --wait_timeout=28800
+      - --log-warnings=0
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  cache:
+    image: redis:4
+    container_name: ctfd-cache
+    restart: unless-stopped
+    volumes:
+      - ctfd-redis:/data
+
+volumes:
+  ctfd-uploads:
+  ctfd-logs:
+  ctfd-db:
+  ctfd-redis:
