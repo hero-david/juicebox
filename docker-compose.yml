@@ -1,40 +1,4 @@
 # Local OWASP Juice Shop + CTFd stack
-#
-# Services:
-#   traefik      reverse proxy, routes by hostname        (http://traefik.ctf.hero)
-#   juice-david  David's private Juice Shop instance       (http://david.ctf.hero)
-#   juice-kees   Kees's private Juice Shop instance        (http://kees.ctf.hero)
-#   shake-logger keystroke-shake logger                    (http://shake.ctf.hero)
-#   ctfd         shared CTF scoreboard/platform            (http://ctf.hero)
-#   db           MariaDB backing store for CTFd
-#   cache        Redis cache/session store for CTFd
-#
-# Routing:
-#   Cloudflare mesh nodes resolve *.ctf.hero to this box and forward :80 to
-#   Traefik, which routes to each container by Host header (see labels below).
-#   The base domain is ${CTF_DOMAIN} (default ctf.hero) so it can be changed
-#   in one place. Only Traefik publishes ports on the host; every other
-#   service is reachable only through it.
-#
-# How the pieces connect:
-#   Every Juice Shop instance shares the same CTF_KEY, so a given challenge
-#   yields the IDENTICAL flag code on every instance. Each competitor solves
-#   challenges on THEIR OWN instance (isolated server-side progress) and submits
-#   the flag to the single shared CTFd, which is the leaderboard. Juice Shop does
-#   not push to CTFd; the matching flags are what tie everything together.
-#
-# Quick start:
-#   1. Set a CTF_KEY (any long random string). Keep it secret and stable.
-#   2. docker compose up -d
-#   3. CTFd admin:  http://localhost:8000  (complete first-run setup)
-#   4. Generate the CTFd challenge import file from your CTF_KEY:
-#         npx juice-shop-ctf-cli
-#      (CTF framework = CTFd, reuse the same CTF_KEY), then upload it under
-#      CTFd > Admin > Config > Backup > Import.
-#
-# Adding another competitor: copy a juice-<name> block, give it a unique
-# container_name and a free host port (3003, 3004, ...). The shared CTF_KEY
-# means no CTFd re-import is needed.
 
 # Shared config for every Juice Shop instance. Anchored so each competitor's
 # service stays a one-liner and the CTF_KEY can never drift between instances.
@@ -82,11 +46,62 @@ services:
     volumes:
       # Read-only socket so Traefik can watch container events.
       - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # One Juice Shop instance per competitor, reachable at <name>.${CTF_DOMAIN}.
+  # To add another: copy a block, swap the three <name> occurrences.
+  juice-doug:
+    <<: *juice-shop
+    container_name: juice-doug
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.${CTF_DOMAIN:-ctf.hero}`)"
-      - "traefik.http.routers.dashboard.entrypoints=web"
-      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.juice-doug.rule=Host(`doug.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-doug.entrypoints=web"
+      - "traefik.http.services.juice-doug.loadbalancer.server.port=3000"
+
+  juice-brendon:
+    <<: *juice-shop
+    container_name: juice-brendon
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.juice-brendon.rule=Host(`brendon.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-brendon.entrypoints=web"
+      - "traefik.http.services.juice-brendon.loadbalancer.server.port=3000"
+
+  juice-pauln:
+    <<: *juice-shop
+    container_name: juice-pauln
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.juice-pauln.rule=Host(`pauln.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-pauln.entrypoints=web"
+      - "traefik.http.services.juice-pauln.loadbalancer.server.port=3000"
+
+  juice-jake:
+    <<: *juice-shop
+    container_name: juice-jake
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.juice-jake.rule=Host(`jake.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-jake.entrypoints=web"
+      - "traefik.http.services.juice-jake.loadbalancer.server.port=3000"
+
+  juice-kees:
+    <<: *juice-shop
+    container_name: juice-kees
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.juice-kees.rule=Host(`kees.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-kees.entrypoints=web"
+      - "traefik.http.services.juice-kees.loadbalancer.server.port=3000"
+
+  juice-daria:
+    <<: *juice-shop
+    container_name: juice-daria
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.juice-daria.rule=Host(`daria.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-daria.entrypoints=web"
+      - "traefik.http.services.juice-daria.loadbalancer.server.port=3000"
 
   juice-david:
     <<: *juice-shop
@@ -97,14 +112,23 @@ services:
       - "traefik.http.routers.juice-david.entrypoints=web"
       - "traefik.http.services.juice-david.loadbalancer.server.port=3000"
 
-  juice-kees:
+  juice-matt:
     <<: *juice-shop
-    container_name: juice-kees
+    container_name: juice-matt
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.juice-kees.rule=Host(`kees.${CTF_DOMAIN:-ctf.hero}`)"
-      - "traefik.http.routers.juice-kees.entrypoints=web"
-      - "traefik.http.services.juice-kees.loadbalancer.server.port=3000"
+      - "traefik.http.routers.juice-matt.rule=Host(`matt.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-matt.entrypoints=web"
+      - "traefik.http.services.juice-matt.loadbalancer.server.port=3000"
+
+  juice-ayub:
+    <<: *juice-shop
+    container_name: juice-ayub
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.juice-ayub.rule=Host(`ayub.${CTF_DOMAIN:-ctf.hero}`)"
+      - "traefik.http.routers.juice-ayub.entrypoints=web"
+      - "traefik.http.services.juice-ayub.loadbalancer.server.port=3000"
 
   shake-logger:
     build: shake-logger/
