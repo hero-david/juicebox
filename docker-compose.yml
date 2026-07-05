@@ -16,12 +16,6 @@ x-juice-shop: &juice-shop
     # container from downloading them by URL). Referenced by filename in config.
     - ./brand/hero-logo.png:/juice-shop/frontend/dist/frontend/assets/public/images/hero-logo.png:ro
     - ./brand/hero-favicon.ico:/juice-shop/frontend/dist/frontend/assets/public/hero-favicon.ico:ro
-  healthcheck:
-    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/rest/admin/application-version"]
-    interval: 30s
-    timeout: 10s
-    retries: 5
-    start_period: 40s
 
 services:
   traefik:
