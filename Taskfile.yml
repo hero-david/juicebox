@@ -2,5 +2,26 @@ version: '3'
 
 tasks:
   generate:
+    desc: >
+      Generate the CTFd import CSV, keeping only challenges that have a
+      walkthrough (i.e. tagged "Tutorial"). Writes OWASP_Juice_Shop.tutorials.CTFd.csv.
+    vars:
+      RAW: OWASP_Juice_Shop.all.CTFd.csv
+      OUT: OWASP_Juice_Shop.tutorials.CTFd.csv
     cmds:
-      - npx --yes juice-shop-ctf-cli --config ./ctf-cli.yml
+      - npx --yes juice-shop-ctf-cli --config ./ctf-cli.yml --output {{.RAW}}
+      - |
+        python3 - "{{.RAW}}" "{{.OUT}}" <<'PY'
+        import csv, sys
+        src, dst = sys.argv[1], sys.argv[2]
+        with open(src, newline='') as f:
+            rows = list(csv.DictReader(f))
+        keep = [r for r in rows
+                if 'Tutorial' in (t.strip() for t in r['tags'].split(','))]
+        with open(dst, 'w', newline='') as f:
+            w = csv.DictWriter(f, fieldnames=rows[0].keys())
+            w.writeheader()
+            w.writerows(keep)
+        print(f'Kept {len(keep)}/{len(rows)} challenges tagged "Tutorial" -> {dst}')
+        PY
+      - rm -f {{.RAW}}
